@@ -1,0 +1,236 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model SchoolSettings {
+  id           String   @id @default("default")
+  name         String   @default("Complexe Scolaire Les Étoiles")
+  motto        String   @default("Excellence - Rigueur - Épanouissement")
+  address      String   @default("Avenue de la République, Quartier Résidentiel")
+  phone        String   @default("+225 07 00 11 22 33")
+  email        String   @default("contact@lesetoiles-king.edu")
+  currency     String   @default("FCFA")
+  directorName String   @default("Dr. Alexandre Kouamé")
+  logoUrl      String?
+  stampUrl     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AcademicYear {
+  id        String        @id @default(uuid())
+  name      String        // ex: "2025-2026"
+  startDate DateTime
+  endDate   DateTime
+  isCurrent Boolean       @default(false)
+  classes   SchoolClass[]
+  createdAt DateTime      @default(now())
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  role      String   // "ADMIN", "ACCOUNTANT", "TEACHER", "PARENT", "STUDENT"
+  phone     String?
+  avatar    String?
+  password  String   @default("password123")
+  active    Boolean  @default(true)
+  teacher   Teacher?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Teacher {
+  id            String         @id @default(uuid())
+  matricule     String         @unique
+  firstName     String
+  lastName      String
+  email         String         @unique
+  phone         String
+  specialty     String
+  avatar        String?
+  userId        String?        @unique
+  user          User?          @relation(fields: [userId], references: [id])
+  mainClasses   SchoolClass[]  @relation("MainTeacher")
+  classSubjects ClassSubject[]
+  createdAt     DateTime       @default(now())
+}
+
+model SchoolClass {
+  id             String         @id @default(uuid())
+  name           String         // ex: "6ème A", "3ème B", "Terminale D"
+  level          String         // "PRIMAIRE", "COLLEGE", "LYCEE"
+  section        String?        // "Scientifique", "Littéraire", etc.
+  capacity       Int            @default(40)
+  academicYearId String
+  academicYear   AcademicYear   @relation(fields: [academicYearId], references: [id])
+  mainTeacherId  String?
+  mainTeacher    Teacher?       @relation("MainTeacher", fields: [mainTeacherId], references: [id])
+  students       Student[]
+  classSubjects  ClassSubject[]
+  attendances    Attendance[]
+  createdAt      DateTime       @default(now())
+}
+
+model Subject {
+  id            String         @id @default(uuid())
+  name          String         // "Mathématiques", "Français", etc.
+  code          String         @unique // "MATH", "FRAN", etc.
+  color         String         @default("#3b82f6")
+  classSubjects ClassSubject[]
+  createdAt     DateTime       @default(now())
+}
+
+model ClassSubject {
+  id          String       @id @default(uuid())
+  classId     String
+  subjectId   String
+  teacherId   String?
+  coefficient Int          @default(2)
+  schoolClass SchoolClass  @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject     Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher     Teacher?     @relation(fields: [teacherId], references: [id])
+  evaluations Evaluation[]
+
+  @@unique([classId, subjectId])
+}
+
+model Student {
+  id             String         @id @default(uuid())
+  matricule      String         @unique // ex: SMK-2026-0001
+  firstName      String
+  lastName       String
+  gender         String         // "M" or "F"
+  birthDate      DateTime
+  birthPlace     String
+  address        String
+  photo          String?
+  medicalNotes   String?
+  parentName     String
+  parentPhone    String
+  parentEmail    String?
+  parentWhatsApp String
+  status         String         @default("ACTIVE") // "ACTIVE", "TRANSFERRED", "GRADUATED"
+  classId        String
+  schoolClass    SchoolClass    @relation(fields: [classId], references: [id])
+  grades         Grade[]
+  attendances    Attendance[]
+  payments       Payment[]
+  reportCards    ReportCard[]
+  notifications  Notification[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Evaluation {
+  id             String       @id @default(uuid())
+  title          String       // "Interrogation 1", "Devoir Surveillé 2", "Composition"
+  type           String       // "INTERRO", "DEVOIR", "COMPOSITION"
+  term           Int          // 1, 2, 3
+  date           DateTime     @default(now())
+  maxScore       Float        @default(20)
+  classSubjectId String
+  classSubject   ClassSubject @relation(fields: [classSubjectId], references: [id], onDelete: Cascade)
+  grades         Grade[]
+  createdAt      DateTime     @default(now())
+}
+
+model Grade {
+  id           String     @id @default(uuid())
+  score        Float
+  comment      String?
+  studentId    String
+  evaluationId String
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([studentId, evaluationId])
+}
+
+model ReportCard {
+  id             String   @id @default(uuid())
+  studentId      String
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term           Int      // 1, 2, 3
+  academicYear   String   // "2025-2026"
+  overallAverage Float
+  rank           Int
+  totalStudents  Int
+  absencesCount  Int      @default(0)
+  lateCount      Int      @default(0)
+  mention        String   // "Tableau d'Honneur", "Encouragements", "Félicitations", etc.
+  teacherRemarks String?
+  isLocked       Boolean  @default(false)
+  generatedAt    DateTime @default(now())
+
+  @@unique([studentId, term, academicYear])
+}
+
+model Attendance {
+  id          String      @id @default(uuid())
+  studentId   String
+  classId     String
+  date        DateTime
+  timeSlot    String      // "08:00 - 10:00"
+  status      String      // "PRESENT", "ABSENT_UNJUSTIFIED", "ABSENT_JUSTIFIED", "LATE"
+  lateMinutes Int         @default(0)
+  reason      String?
+  recordedBy  String?
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  schoolClass SchoolClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+}
+
+model FeeStructure {
+  id              String   @id @default(uuid())
+  academicYear    String   @default("2025-2026")
+  level           String   // "PRIMAIRE", "COLLEGE", "LYCEE"
+  registrationFee Float    // ex: 50000
+  tranche1        Float    // ex: 100000
+  tranche2        Float    // ex: 80000
+  tranche3        Float    // ex: 70000
+  dueDateT1       DateTime
+  dueDateT2       DateTime
+  dueDateT3       DateTime
+  createdAt       DateTime @default(now())
+
+  @@unique([academicYear, level])
+}
+
+model Payment {
+  id            String   @id @default(uuid())
+  receiptNumber String   @unique // REC-2026-0001
+  studentId     String
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  amount        Float
+  paymentType   String   // "REGISTRATION", "TRANCHE_1", "TRANCHE_2", "TRANCHE_3", "FULL", "OTHER"
+  paymentMethod String   // "CASH", "MOBILE_MONEY", "BANK_TRANSFER", "CHECK"
+  reference     String?
+  note          String?
+  date          DateTime @default(now())
+  recordedBy    String   @default("Économe Principal")
+  createdAt     DateTime @default(now())
+}
+
+model Notification {
+  id             String    @id @default(uuid())
+  type           String    // "ABSENCE_ALERT", "FEE_REMINDER", "REPORT_CARD_READY", "GENERAL"
+  recipientType  String    // "PARENT", "TEACHER", "STUDENT"
+  recipientName  String
+  recipientPhone String
+  message        String
+  channel        String    // "WHATSAPP", "SMS"
+  status         String    // "SENT", "PENDING", "FAILED"
+  sentAt         DateTime  @default(now())
+  studentId      String?
+  student        Student?  @relation(fields: [studentId], references: [id])
+  createdAt      DateTime  @default(now())
+}
